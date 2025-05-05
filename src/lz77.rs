@@ -4,7 +4,8 @@ use std::{
     ops::Index,
 };
 
-const WINDOW_SIZE: usize = 1 << 12;
+const WINDOW_SIZE: usize = 1 << 14;
+const SENTINEL: u8 = 0xff;
 
 struct RingBuffer<const CAPACITY: usize> {
     buffer: [u8; CAPACITY],
@@ -128,7 +129,7 @@ fn find_match<const CAPACITY: usize>(
     let mut longest_match_position = 0;
     let mut i = 0;
 
-    while match_len + window_size < input.len() && match_len < u16::MAX as usize {
+    while match_len + window_size < input.len() && match_len < 0xff00 {
         // println!("{}, {}", input[i] as char, input[window_size + match_len] as char);
         if input[i] == input[window_size + match_len] {
             if match_len == 0 {
@@ -165,8 +166,8 @@ fn find_match<const CAPACITY: usize>(
 }
 
 fn put_char(writer: &mut BufWriter<&mut File>, c: u8) -> Result<(), std::io::Error> {
-    if c == b'\\' {
-        writer.write(b"\\\\")?;
+    if c == SENTINEL {
+        writer.write(&[SENTINEL, SENTINEL])?;
     } else {
         writer.write(&[c])?;
     }
@@ -193,9 +194,9 @@ pub fn lz77_compress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Err
                 put_char(&mut writer, input[window_size + i])?;
             }
         } else {
-            writer.write(b"\\")?;
-            writer.write(&(d as u16).to_be_bytes())?;
+            writer.write(&[SENTINEL])?;
             writer.write(&(l as u16).to_be_bytes())?;
+            writer.write(&(d as u16).to_be_bytes())?;
         }
 
         let window_size_change = std::cmp::min(WINDOW_SIZE - window_size, l);
@@ -220,14 +221,14 @@ pub fn lz77_decompress(fin: &mut File, fout: &mut File) -> Result<(), std::io::E
     while buf_size > 0 {
         let mut i = 0;
         while i < buf_size && i < buf.len() - 4 {
-            if buf[i] == b'\\' {
-                if buf[i + 1] == b'\\' {
+            if buf[i] == SENTINEL {
+                if buf[i + 1] == SENTINEL {
                     window.wrapping_push(buf[i]);
                     writer.write(&[buf[i]])?;
                     i += 2;
                 } else {
-                    let d = u16::from_be_bytes([buf[i + 1], buf[i + 2]]) as usize;
-                    let l = u16::from_be_bytes([buf[i + 3], buf[i + 4]]) as usize;
+                    let l = u16::from_be_bytes([buf[i + 1], buf[i + 2]]) as usize;
+                    let d = u16::from_be_bytes([buf[i + 3], buf[i + 4]]) as usize;
 
                     let mut window_position = window.len() - d;
                     let mut bytes_copied = 0;
