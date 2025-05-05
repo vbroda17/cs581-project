@@ -261,8 +261,3 @@ pub fn lz77_decompress(fin: &mut File, fout: &mut File) -> Result<(), std::io::E
 
     Ok(())
 }
-
-// hello hello
-//
-//
-// h
