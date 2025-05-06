@@ -195,7 +195,7 @@ fn main() {
     let args :Vec<String> = std::env::args().collect();
 
     // let filepath = &args[2];
-    let filepaths: [&str; 1] = ["./analysis_files/CLRS-3rd.pdf"];
+    let filepaths: [&str; 1] = ["input.png"];
 
     for filepath in filepaths {
         run_on_file(&filepath.to_string(), &args[1]);
