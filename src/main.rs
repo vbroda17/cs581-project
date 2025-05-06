@@ -50,6 +50,8 @@ fn time_it_and_calc_compr_ratio<F>(input_file: &String, func: F) -> TimeAndCompr
 
 struct DataPoint {
     time: f64,
+    first_cr: f64,
+    second_cr: f64,
     compression_ratio: f64,
 }
 
@@ -64,24 +66,26 @@ type CompressionTable = Vec<CompressionRow>;
 
 fn print_compression_table(table: &CompressionTable) {
     println!(
-        "{:<16} | {:<10} {:<18} | {:<10} {:<18} | {:<10} {:<18}",
+        "{:<16} | {:<10} {:<18} | {:<10} {:<18} | {:<10} {:<18} ({:<8.8} x {:<8.8})",
         "Window Size",
         "Time(s)", "Ratio (Huffman)",
         "Time(s)", "Ratio (LZ77)",
-        "Time(s)", "Ratio (Deflate)"
+        "Time(s)", "Ratio (Deflate)", "First CR",  "Second CR"
     );
-    println!("{}", "-".repeat(90));
+    println!("{}", "-".repeat(140));
 
     for (_, row) in table.iter().enumerate() {
         println!(
-            "{:<16} | {:<10.4} {:<18.4} | {:<10.4} {:<18.4} | {:<10.4} {:<18.4}",
+            "{:<16} | {:<10.4} {:<18.4} | {:<10.4} {:<18.4} | {:<10.4} {:<18.4} ({:<8.4} x {:<8.4})",
             row.window_size,
             row.huffman.time, row.huffman.compression_ratio,
             row.lz77.time, row.lz77.compression_ratio,
-            row.deflate.time, row.deflate.compression_ratio
+            row.deflate.time, row.deflate.compression_ratio, row.deflate.first_cr, row.deflate.second_cr
         );
     }
 }
+
+const MAX_WINDOW_SHIFT: usize= 14;
 
 fn main() {
     let args :Vec<String> = std::env::args().collect();
@@ -89,7 +93,7 @@ fn main() {
     let filepath = &args[2];
     let mut table = CompressionTable::new();
 
-    for shift_len in 2..=12 {
+    for shift_len in 2..=MAX_WINDOW_SHIFT {
         let window_size = 1 << shift_len;
 
         println!("--- Window size: {} ---", &window_size);
@@ -104,6 +108,8 @@ fn main() {
             let compression_ratio = compr_ratio.compression_ratio;
             let huffman_datapoint = DataPoint {
                 time: time_taken,
+                first_cr: 0f64,
+                second_cr: 0f64,
                 compression_ratio: compression_ratio,
             };
             println!("Huffman Encoding Complete");
@@ -117,6 +123,8 @@ fn main() {
             let compression_ratio = compr_ratio.compression_ratio;
             let lz77_datapoint = DataPoint {
                 time: time_taken,
+                first_cr: 0f64,
+                second_cr: 0f64,
                 compression_ratio: compression_ratio,
             };
             println!("LZ77 Compression Complete");
@@ -129,10 +137,20 @@ fn main() {
                     return compress_using_huffman(&output_file, "defl");
                 }
             );
+            let input_filesize = get_filesize(filepath) as usize;
+            let lz77_filesize = get_filesize(&format!("{}.lz77", filepath)) as usize;
+            let defl_filesize = get_filesize(&format!("{}.lz77.defl", filepath)) as usize;
+            let first_cr = input_filesize as f64 / lz77_filesize as f64;
+            let second_cr = lz77_filesize as f64 / defl_filesize as f64;
+
+            println!("Deflate Compression: {}, {}, {}, {}, {}", input_filesize, lz77_filesize, defl_filesize, first_cr, second_cr);
+
             let time_taken = compr_ratio.time;
             let compression_ratio = compr_ratio.compression_ratio;
             let defl_datapoint = DataPoint {
                 time: time_taken,
+                first_cr: first_cr,
+                second_cr: second_cr,
                 compression_ratio: compression_ratio,
             };
             println!("Deflate Compression Complete");
