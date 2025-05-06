@@ -85,6 +85,25 @@ fn print_compression_table(table: &CompressionTable) {
     }
 }
 
+fn to_csv(value: f64) -> String {
+    format!("{:.4}", value)
+}
+
+fn write_to_csv(table: &CompressionTable, filename: &str) {
+    let mut writer = csv::Writer::from_path(filename).expect("Couldn't create writer");
+
+    writer.write_record(&["Window Size", "Huffman Time", "Huffman Ratio", "LZ77 Time", "LZ77 Ratio", "Deflate Time", "Deflate Ratio", "First CR", "Second CR"]).expect("Couldn't write to csv");
+
+
+    for row in table.iter() {
+        writer.write_record(&[row.window_size.to_string(),
+            to_csv(row.huffman.time), to_csv(row.huffman.compression_ratio),
+            to_csv(row.lz77.time), to_csv(row.lz77.compression_ratio),
+            to_csv(row.deflate.time), to_csv(row.deflate.compression_ratio), to_csv(row.deflate.first_cr), to_csv(row.deflate.second_cr)
+        ]).expect("Couldn't write to csv");
+    }
+}
+
 const MAX_WINDOW_SHIFT: usize= 14;
 
 fn main() {
@@ -170,4 +189,7 @@ fn main() {
 
     // Show the table properly formatted
     print_compression_table(&table);
+
+    // Write to CSV
+    write_to_csv(&table, "compression_table.csv");
 }
