@@ -4,7 +4,6 @@ use std::{
     ops::Index,
 };
 
-const WINDOW_SIZE: usize = 1 << 12;
 const SENTINEL: u8 = 0xff;
 
 struct RingBuffer {
@@ -175,8 +174,8 @@ fn put_char(writer: &mut BufWriter<&mut File>, c: u8) -> Result<(), std::io::Err
     Ok(())
 }
 
-pub fn lz77_compress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Error> {
-    let mut input = RingBuffer::new(3 * WINDOW_SIZE);
+pub fn lz77_compress(fin: &mut File, fout: &mut File, max_window_size: usize) -> Result<(), std::io::Error> {
+    let mut input = RingBuffer::new(3 * max_window_size);
     let mut window_size = 1;
     let mut writer = BufWriter::new(fout);
 
@@ -199,11 +198,11 @@ pub fn lz77_compress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Err
             writer.write(&(d as u16).to_be_bytes())?;
         }
 
-        let window_size_change = std::cmp::min(WINDOW_SIZE - window_size, l);
+        let window_size_change = std::cmp::min(max_window_size - window_size, l);
         window_size += window_size_change;
         input.ignore(l - window_size_change);
 
-        if input.len() < 2 * WINDOW_SIZE {
+        if input.len() < 2 * max_window_size {
             input.fill_from_file(fin)?;
         }
     }
@@ -211,9 +210,9 @@ pub fn lz77_compress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Err
     Ok(())
 }
 
-pub fn lz77_decompress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Error> {
+pub fn lz77_decompress(fin: &mut File, fout: &mut File, max_window_size: usize) -> Result<(), std::io::Error> {
     let mut writer = BufWriter::new(fout);
-    let mut window = RingBuffer::new(WINDOW_SIZE);
+    let mut window = RingBuffer::new(max_window_size);
     let mut buf = [0u8; 0x2000];
     let mut buf2 = [0u8; 0x2000];
     let mut buf_size= fin.read(&mut buf)?;
