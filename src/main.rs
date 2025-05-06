@@ -124,19 +124,6 @@ fn main() {
             };
             println!("Huffman Encoding Complete");
 
-            // let input_size = get_filesize(filepath);
-            // let start_t = std::time::Instant::now();
-            // let output_filepath = compress_using_huffman(filepath, "huff");
-            // let end_t = std::time::Instant::now();
-            // let time_taken = end_t.duration_since(start_t).as_secs_f64();
-            // let output_size = get_filesize(&output_filepath);
-            // let compression_ratio = input_size as f64 / output_size as f64;
-            // let huffman_datapoint = DataPoint {
-            //     time: time_taken,
-            //     compression_ratio: compression_ratio,
-            // };
-            // println!("Huffman Encoding Complete");
-
             // LZ77 Compression
             let compr_ratio = calc_compr_ratio(
                 &filepath,
@@ -151,8 +138,6 @@ fn main() {
                 compression_ratio: compression_ratio,
             };
             println!("LZ77 Compression Complete");
-            // compress_using_lz77(filepath, window_size);
-            // println!("LZ77 Compression Complete");
 
             // Deflate
             let compr_ratio = calc_compr_ratio(
@@ -179,10 +164,6 @@ fn main() {
                 deflate: defl_datapoint,
             };
             table.push(row);
-
-            // compress_using_lz77(filepath, window_size);
-            // compress_using_huffman(&format!("{}.lz77", filepath), "defl");
-            // println!("Deflate Compression Complete");
         }
         else if args[1] == "decompress" {
             lz77_decompress(&mut File::open(args[2].as_str()).expect("Couldn't open compressed file."), &mut File::create(args[2].trim_end_matches(".z")).expect("Couldn't create output file"), window_size).expect("LZ77 file error");
