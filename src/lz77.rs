@@ -4,26 +4,27 @@ use std::{
     ops::Index,
 };
 
-const WINDOW_SIZE: usize = 1 << 14;
+const WINDOW_SIZE: usize = 1 << 12;
 const SENTINEL: u8 = 0xff;
 
-struct RingBuffer<const CAPACITY: usize> {
-    buffer: [u8; CAPACITY],
+struct RingBuffer {
+    buffer: Vec<u8>,
     at: usize,
     size: usize,
+    capacity: usize,
 }
 
-impl<const CAPACITY: usize> RingBuffer<CAPACITY> {
-    fn new() -> Self {
-        let buffer = [0u8; CAPACITY];
+impl RingBuffer {
+    fn new(capacity: usize) -> Self {
+        let buffer = vec![0u8; capacity];
         let at = 0;
         let size = 0;
 
-        Self { buffer, at, size }
+        Self { buffer, at, size, capacity }
     }
 
     fn write_position(&self) -> usize {
-        (self.at + self.size) % CAPACITY
+        (self.at + self.size) % self.capacity
     }
 
     fn fill_from_file(&mut self, fin: &mut File) -> Result<usize, std::io::Error> {
@@ -43,31 +44,31 @@ impl<const CAPACITY: usize> RingBuffer<CAPACITY> {
 
     fn wrapping_write(&mut self, bytes: &[u8]) -> usize {
         let write_position = self.write_position();
-        let to_write = std::cmp::min(CAPACITY, bytes.len());
-        let to_ignore = std::cmp::max(to_write as i64 - (CAPACITY - self.size) as i64, 0) as usize;
+        let to_write = std::cmp::min(self.capacity, bytes.len());
+        let to_ignore = std::cmp::max(to_write as i64 - (self.capacity - self.size) as i64, 0) as usize;
 
-        if write_position + to_write > CAPACITY {
-            self.buffer[write_position..].copy_from_slice(&bytes[..(CAPACITY - write_position)]);
-            self.buffer[..(to_write - (CAPACITY - write_position))]
-                .copy_from_slice(&bytes[(CAPACITY - write_position)..to_write]);
+        if write_position + to_write > self.capacity {
+            self.buffer[write_position..].copy_from_slice(&bytes[..(self.capacity - write_position)]);
+            self.buffer[..(to_write - (self.capacity - write_position))]
+                .copy_from_slice(&bytes[(self.capacity - write_position)..to_write]);
         } else {
             self.buffer[write_position..(write_position + to_write)]
                 .copy_from_slice(&bytes[..to_write]);
         }
 
         self.size += to_write - to_ignore;
-        self.at = (self.at + to_ignore) % CAPACITY;
+        self.at = (self.at + to_ignore) % self.capacity;
         to_ignore
     }
 
     fn peak(&mut self, bytes: &mut [u8], start: usize) -> usize {
-        let to_peak = std::cmp::min(self.size - start % CAPACITY, bytes.len());
-        let start = (self.at + start) % CAPACITY;
+        let to_peak = std::cmp::min(self.size - start % self.capacity, bytes.len());
+        let start = (self.at + start) % self.capacity;
 
-        if start + to_peak > CAPACITY {
-            bytes[..(CAPACITY - start)].copy_from_slice(&self.buffer[start..]);
-            bytes[(CAPACITY - start)..to_peak]
-                .copy_from_slice(&self.buffer[..(to_peak - (CAPACITY - start))]);
+        if start + to_peak > self.capacity {
+            bytes[..(self.capacity - start)].copy_from_slice(&self.buffer[start..]);
+            bytes[(self.capacity - start)..to_peak]
+                .copy_from_slice(&self.buffer[..(to_peak - (self.capacity - start))]);
         } else {
             bytes[..to_peak].copy_from_slice(&self.buffer[start..(start + to_peak)]);
         }
@@ -86,16 +87,17 @@ impl<const CAPACITY: usize> RingBuffer<CAPACITY> {
             self.clear();
             ret
         } else {
-            self.at = (self.at + bytes) % CAPACITY;
+            self.at = (self.at + bytes) % self.capacity;
             self.size -= bytes;
             bytes
         }
     }
 
     fn wrapping_push(&mut self, v: u8) {
-        self.buffer[self.write_position()] = v;
+        let pos = self.write_position();
+        self.buffer[pos] = v;
 
-        if self.size >= CAPACITY {
+        if self.size >= self.capacity {
             self.at += 1;
         } else {
             self.size += 1;
@@ -106,20 +108,18 @@ impl<const CAPACITY: usize> RingBuffer<CAPACITY> {
     fn len(&self) -> usize {
         self.size
     }
-
-
 }
 
-impl<const CAPACITY: usize> Index<usize> for RingBuffer<CAPACITY> {
+impl Index<usize> for RingBuffer {
     type Output = u8;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.buffer[(self.at + index) % CAPACITY]
+        &self.buffer[(self.at + index) % self.capacity]
     }
 }
 
-fn find_match<const CAPACITY: usize>(
-    input: &mut RingBuffer<CAPACITY>,
+fn find_match(
+    input: &mut RingBuffer,
     window_size: usize,
 ) -> Result<(usize, usize), std::io::Error> {
     let mut match_position = 0;
@@ -176,7 +176,7 @@ fn put_char(writer: &mut BufWriter<&mut File>, c: u8) -> Result<(), std::io::Err
 }
 
 pub fn lz77_compress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Error> {
-    let mut input = RingBuffer::<{ 3 * WINDOW_SIZE }>::new();
+    let mut input = RingBuffer::new(3 * WINDOW_SIZE);
     let mut window_size = 1;
     let mut writer = BufWriter::new(fout);
 
@@ -213,7 +213,7 @@ pub fn lz77_compress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Err
 
 pub fn lz77_decompress(fin: &mut File, fout: &mut File) -> Result<(), std::io::Error> {
     let mut writer = BufWriter::new(fout);
-    let mut window = RingBuffer::<WINDOW_SIZE>::new();
+    let mut window = RingBuffer::new(WINDOW_SIZE);
     let mut buf = [0u8; 0x2000];
     let mut buf2 = [0u8; 0x2000];
     let mut buf_size= fin.read(&mut buf)?;
