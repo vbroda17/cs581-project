@@ -106,10 +106,7 @@ fn write_to_csv(table: &CompressionTable, filename: &str) {
 
 const MAX_WINDOW_SHIFT: usize= 14;
 
-fn main() {
-    let args :Vec<String> = std::env::args().collect();
-
-    let filepath = &args[2];
+fn run_on_file(filepath: &String, command: &String) {
     let mut table = CompressionTable::new();
 
     for shift_len in 2..=MAX_WINDOW_SHIFT {
@@ -117,7 +114,7 @@ fn main() {
 
         println!("--- Window size: {} ---", &window_size);
 
-        if args[1] == "compress" {
+        if command == "compress" {
             // Huffman encoding
             let compr_ratio = time_it_and_calc_compr_ratio(
                 &filepath,
@@ -182,8 +179,8 @@ fn main() {
             };
             table.push(row);
         }
-        else if args[1] == "decompress" {
-            lz77_decompress(&mut File::open(args[2].as_str()).expect("Couldn't open compressed file."), &mut File::create(args[2].trim_end_matches(".z")).expect("Couldn't create output file"), window_size).expect("LZ77 file error");
+        else if command == "decompress" {
+            lz77_decompress(&mut File::open(filepath.as_str()).expect("Couldn't open compressed file."), &mut File::create(filepath.trim_end_matches(".z")).expect("Couldn't create output file"), window_size).expect("LZ77 file error");
         }
     }
 
@@ -191,5 +188,20 @@ fn main() {
     print_compression_table(&table);
 
     // Write to CSV
-    write_to_csv(&table, "compression_table.csv");
+    write_to_csv(&table, format!("compression_table_{}.csv", filepath).as_str());
 }
+
+fn main() {
+    let args :Vec<String> = std::env::args().collect();
+
+    // let filepath = &args[2];
+    let filepaths: [&str; 1] = ["./analysis_files/CLRS-3rd.pdf"];
+
+    for filepath in filepaths {
+        run_on_file(&filepath.to_string(), &args[1]);
+    }
+}
+
+// TODO:
+// 1. Run on multiple files (CLRS.pdf book and an uncompressed PNG file)
+// 2. Do decompress fully
