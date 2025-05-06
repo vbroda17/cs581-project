@@ -27,33 +27,19 @@ fn get_filesize(filepath: &String) -> u64 {
     return metadata(filepath).expect("Couldn't get file metadata").len();
 }
 
-struct TimeIt<T> {
-    time: f64,
-    other: T,
-}
-
-fn time_it<T, F>(func: F) -> TimeIt<T> where F: FnOnce() -> T {
-    let start_t = std::time::Instant::now();
-    let return_value = func();
-    let end_t = std::time::Instant::now();
-    return TimeIt {
-        time: end_t.duration_since(start_t).as_secs_f64(),
-        other: return_value,
-    };
-}
-
-struct ComprRatio {
+struct TimeAndComprRatio {
     time: f64,
     compression_ratio: f64,
 }
 
-fn calc_compr_ratio<F>(input_file: &String, func: F) -> ComprRatio where F: FnOnce() -> TimeIt<String> {
+fn time_it_and_calc_compr_ratio<F>(input_file: &String, func: F) -> TimeAndComprRatio where F: FnOnce() -> String {
     let input_size = get_filesize(input_file);
-    let time_it = func();
-    let output_file = time_it.other;
+    let start_time = std::time::Instant::now();
+    let output_file = func();
+    let end_time = std::time::Instant::now();
     let output_size = get_filesize(&output_file);
-    return ComprRatio {
-        time: time_it.time,
+    return TimeAndComprRatio {
+        time: end_time.duration_since(start_time).as_secs_f64(),
         compression_ratio: input_size as f64 / output_size as f64
     };
 }
@@ -110,11 +96,9 @@ fn main() {
 
         if args[1] == "compress" {
             // Huffman encoding
-            let compr_ratio = calc_compr_ratio(
+            let compr_ratio = time_it_and_calc_compr_ratio(
                 &filepath,
-                || time_it(
-                    || compress_using_huffman(&filepath, "huff")
-                )
+                || compress_using_huffman(&filepath, "huff")
             );
             let time_taken = compr_ratio.time;
             let compression_ratio = compr_ratio.compression_ratio;
@@ -125,11 +109,9 @@ fn main() {
             println!("Huffman Encoding Complete");
 
             // LZ77 Compression
-            let compr_ratio = calc_compr_ratio(
+            let compr_ratio = time_it_and_calc_compr_ratio(
                 &filepath,
-                || time_it(
-                    || compress_using_lz77(filepath, window_size)
-                )
+                || compress_using_lz77(filepath, window_size)
             );
             let time_taken = compr_ratio.time;
             let compression_ratio = compr_ratio.compression_ratio;
@@ -140,14 +122,12 @@ fn main() {
             println!("LZ77 Compression Complete");
 
             // Deflate
-            let compr_ratio = calc_compr_ratio(
+            let compr_ratio = time_it_and_calc_compr_ratio(
                 &filepath,
-                || time_it(
-                    || {
-                        let output_file = compress_using_lz77(filepath, window_size);
-                        return compress_using_huffman(&output_file, "defl");
-                    }
-                )
+                || {
+                    let output_file = compress_using_lz77(filepath, window_size);
+                    return compress_using_huffman(&output_file, "defl");
+                }
             );
             let time_taken = compr_ratio.time;
             let compression_ratio = compr_ratio.compression_ratio;
