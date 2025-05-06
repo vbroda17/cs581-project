@@ -27,18 +27,35 @@ fn get_filesize(filepath: &String) -> u64 {
     return metadata(filepath).expect("Couldn't get file metadata").len();
 }
 
-fn time_it<T, F>(func: F) -> (T, f64) where F: FnOnce() -> T {
+struct TimeIt<T> {
+    time: f64,
+    other: T,
+}
+
+fn time_it<T, F>(func: F) -> TimeIt<T> where F: FnOnce() -> T {
     let start_t = std::time::Instant::now();
     let return_value = func();
     let end_t = std::time::Instant::now();
-    return (return_value, end_t.duration_since(start_t).as_secs_f64());
+    return TimeIt {
+        time: end_t.duration_since(start_t).as_secs_f64(),
+        other: return_value,
+    };
 }
 
-fn calc_compr_ratio<F>(input_file: &String, func: F) -> f64 where F: FnOnce() -> String {
+struct ComprRatio {
+    time: f64,
+    compression_ratio: f64,
+}
+
+fn calc_compr_ratio<F>(input_file: &String, func: F) -> ComprRatio where F: FnOnce() -> TimeIt<String> {
     let input_size = get_filesize(input_file);
-    let output_file = func();
+    let time_it = func();
+    let output_file = time_it.other;
     let output_size = get_filesize(&output_file);
-    return input_size as f64 / output_size as f64;
+    return ComprRatio {
+        time: time_it.time,
+        compression_ratio: input_size as f64 / output_size as f64
+    };
 }
 
 // TODO: 1. Add time, then store that into table, and in the end, display the table. Then, plot it using python.
@@ -93,12 +110,14 @@ fn main() {
 
         if args[1] == "compress" {
             // Huffman encoding
-            let (time_taken, compression_ratio) = time_it(||
-                calc_compr_ratio(
-                    &filepath,
+            let compr_ratio = calc_compr_ratio(
+                &filepath,
+                || time_it(
                     || compress_using_huffman(&filepath, "huff")
                 )
             );
+            let time_taken = compr_ratio.time;
+            let compression_ratio = compr_ratio.compression_ratio;
             let huffman_datapoint = DataPoint {
                 time: time_taken,
                 compression_ratio: compression_ratio,
@@ -119,12 +138,14 @@ fn main() {
             // println!("Huffman Encoding Complete");
 
             // LZ77 Compression
-            let (time_taken, compression_ratio) = time_it(||
-                calc_compr_ratio(
-                    filepath,
+            let compr_ratio = calc_compr_ratio(
+                &filepath,
+                || time_it(
                     || compress_using_lz77(filepath, window_size)
                 )
             );
+            let time_taken = compr_ratio.time;
+            let compression_ratio = compr_ratio.compression_ratio;
             let lz77_datapoint = DataPoint {
                 time: time_taken,
                 compression_ratio: compression_ratio,
@@ -134,15 +155,17 @@ fn main() {
             // println!("LZ77 Compression Complete");
 
             // Deflate
-            let (time_taken, compression_ratio) = time_it(||
-                calc_compr_ratio(
-                    filepath,
+            let compr_ratio = calc_compr_ratio(
+                &filepath,
+                || time_it(
                     || {
                         let output_file = compress_using_lz77(filepath, window_size);
                         return compress_using_huffman(&output_file, "defl");
                     }
                 )
             );
+            let time_taken = compr_ratio.time;
+            let compression_ratio = compr_ratio.compression_ratio;
             let defl_datapoint = DataPoint {
                 time: time_taken,
                 compression_ratio: compression_ratio,
