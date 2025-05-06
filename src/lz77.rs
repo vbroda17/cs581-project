@@ -4,7 +4,7 @@ use std::{
     ops::Index,
 };
 
-const WINDOW_SIZE: usize = 1 << 14;
+const WINDOW_SIZE: usize = (1 << 16) - 1;
 const SENTINEL: u8 = 0xff;
 
 struct RingBuffer<const CAPACITY: usize> {
